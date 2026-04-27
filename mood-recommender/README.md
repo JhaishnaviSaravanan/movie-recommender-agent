@@ -1,376 +1,105 @@
-# Mood-Adaptive Generative Movie/Show Recommender
+# CineMatch | AI Movie Concierge
 
-An emotionally intelligent AI system that interprets **any form of mood input** — vague, emotional, emoji-only, or incomplete — and returns personalized movie/show recommendations grounded in FAISS semantic retrieval and Gemini 1.5 Flash generation.
+CineMatch is a premium, emotionally intelligent movie recommendation system. Unlike traditional search engines, it doesn't ask what you want to watch—it asks how you feel. 
 
-> "I don't ask what you want to watch. I ask how you feel."
-
----
-
-## Architecture
-
-```
-User Input (Streamlit)
-        │
-        ▼
-┌─────────────────────┐
-│  IntentDetector     │  ← Is input empty? If yes → clarify once
-└─────────────────────┘
-        │ interpretable
-        ▼
-┌─────────────────────┐
-│  MoodExtractor      │  ← Gemini Call 1: interpret mood → JSON
-│  (Gemini 1.5 Flash) │     {interpreted_mood, intensity, themes,
-└─────────────────────┘      search_queries, confidence}
-        │
-        ▼
-┌─────────────────────┐
-│  FAISSRetriever     │  ← Multi-query semantic search (offline index)
-│  (all-MiniLM-L6-v2) │     embeds queries → searches FAISS → merges results
-└─────────────────────┘
-        │
-        ▼
-┌─────────────────────┐
-│ RetrievalEvaluator  │  ← Score quality
-│                     │     Good → proceed | Weak → retry broader query
-└─────────────────────┘
-        │
-        ▼
-┌─────────────────────┐
-│  GeminiGenerator    │  ← Gemini Call 2: generate warm, personalized
-│  (Gemini 1.5 Flash) │     recommendations from retrieved candidates
-└─────────────────────┘
-        │
-        ▼
-┌─────────────────────┐
-│  Streamlit UI       │  ← Display interpreted mood + recommendation cards
-└─────────────────────┘
-```
+Using **Retrieval-Augmented Generation (RAG)**, CineMatch interprets your mood (even from emojis or vague text) and provides personalized recommendations grounded in a curated database of 780+ movies and shows.
 
 ---
 
-## COE Topic Coverage
+## ✨ Features
 
-| Topic | Where It Appears |
+- **Mood-Adaptive Intelligence**: Interprets complex emotions, emojis, and slang using Groq's Llama 3.
+- **RAG Architecture**: Recommendations are grounded in a local FAISS vector database to prevent AI hallucinations.
+- **Premium Neutral UI**: A high-end, minimalist dark theme built with React and modern CSS.
+- **Instant Results**: Powered by Groq LPU™ for near-zero latency generation.
+- **Session Awareness**: Remembers your previous feedback to refine results in real-time.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
 |---|---|
-| **Generative AI** | Gemini 1.5 Flash — mood interpretation (Call 1) + recommendation generation (Call 2) |
-| **Prompt Engineering** | 3-stage prompt chain in `backend/llm/prompt_templates.py` |
-| **HuggingFace / Open Source** | `sentence-transformers/all-MiniLM-L6-v2` for FAISS embedding |
-| **LLM + RAG** | FAISS multi-query retrieval feeds Gemini generation — LLM never retrieves directly |
-| **Agentic AI** | Intent detection → mood extraction → quality gating → refinement loop (`pipeline/recommender_pipeline.py`) |
-| **MCP Server** | `backend/mcp/mcp_server.py` exposes recommender as callable tool for other AI agents |
-| **n8n** | `n8n/workflow_export.json` — scheduled daily FAISS refresh via `POST /refresh-data` |
+| **Frontend** | React 18 + Vite (Vanilla CSS) |
+| **Backend** | FastAPI (Python 3.11+) |
+| **LLM** | Groq (Llama 3.3 70B) |
+| **Vector DB** | FAISS (Facebook AI Similarity Search) |
+| **Embeddings** | HuggingFace `all-MiniLM-L6-v2` |
+| **Data Sources** | TMDB · OMDB · RapidAPI · TVmaze |
 
 ---
 
-## Folder Structure
+## 🔌 Data Sources
 
-```
+To build its comprehensive movie library, CineMatch leverages four major APIs during the data ingestion phase:
+
+1.  **TMDB (The Movie Database)**: The primary source for movie/show metadata, overviews, and genres.
+2.  **OMDB (Open Movie Database)**: Provides accurate IMDb ratings and detailed plot summaries.
+3.  **RapidAPI (Streaming Availability)**: Adds real-time catalog data for platforms like Netflix, Disney+, and Prime Video.
+4.  **TVMaze**: Used to enrich TV show data with episode details and network information.
+
+---
+
+## 📂 Project Structure
+
+```text
 mood-recommender/
-│
-├── backend/
-│   ├── agent/
-│   │   ├── intent_detector.py        # Never blocks on vague input
-│   │   ├── mood_extractor.py         # Gemini Call 1 — free-form interpretation
-│   │   ├── retrieval_evaluator.py    # Quality gate — proceed or retry broader
-│   │   └── feedback_handler.py       # Session memory, title tracking
-│   │
-│   ├── data/
-│   │   ├── api_fetcher.py            # Batch fetch from 4 APIs (run once)
-│   │   ├── preprocessor.py           # Normalize + merge all sources
-│   │   └── embeddings/
-│   │       ├── embed_builder.py      # Build FAISS index
-│   │       ├── faiss_index.bin       # Pre-built index (git-ignored)
-│   │       └── metadata_store.json   # Metadata linked to vectors (git-ignored)
-│   │
-│   ├── rag/
-│   │   ├── embed_query.py            # Embed single/batch queries
-│   │   └── faiss_retriever.py        # Multi-query search, merge, deduplicate
-│   │
-│   ├── llm/
-│   │   ├── prompt_templates.py       # 3-stage prompt chain
-│   │   └── gemini_generator.py       # Gemini Call 2 — recommendation generation
-│   │
-│   ├── pipeline/
-│   │   └── recommender_pipeline.py   # Orchestrates all components end-to-end
-│   │
-│   ├── mcp/
-│   │   └── mcp_server.py             # MCP-compatible tool wrapper
-│   │
-│   ├── tests/
-│   │   ├── test_agent.py
-│   │   ├── test_rag.py
-│   │   ├── test_llm.py
-│   │   └── test_pipeline.py
-│   │
-│   ├── main.py                       # FastAPI app entry point
-│   ├── routes.py                     # API route definitions
-│   ├── config.py                     # Env var loader
-│   └── requirements.txt
-│
-├── frontend/
-│   └── app.py                        # Streamlit UI (dark glassmorphism theme)
-│
-├── n8n/
-│   └── workflow_export.json          # Scheduled FAISS refresh workflow
-│
-├── notebooks/
-│   ├── 01_api_exploration.ipynb
-│   ├── 02_embedding_pipeline.ipynb
-│   └── 03_end_to_end_demo.ipynb
-│
-├── .env.example
-├── .gitignore
-└── README.md
+├── backend/                # FastAPI logic
+│   ├── agent/              # Mood interpretation & Intent logic
+│   ├── data/               # Movie Library & Vector Database
+│   ├── llm/                # Prompt templates & LLM Generator
+│   ├── pipeline/           # Orchestration of the RAG flow
+│   ├── rag/                # FAISS retrieval logic
+│   └── main.py             # Server Entry Point
+├── frontend/               # React Application
+│   ├── src/                # Components, Hooks, and Styles
+│   └── index.html          # Frontend Entry Point
+└── .env                    # API Keys (TMDB, Groq, etc.)
 ```
 
 ---
 
-## Setup & Installation
+## 🚀 Getting Started
 
 ### Prerequisites
 - Python 3.11+
-- API keys: TMDB, OMDB, RapidAPI (Streaming Availability), Google Gemini
+- Node.js & npm
+- API Keys: Groq, TMDB, OMDB, RapidAPI (Streaming)
 
-### 1. Clone the repository
-
+### 1. Setup Backend
 ```bash
-git clone <your-repo-url>
 cd mood-recommender
-```
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate  
 
-### 2. Create and configure `.env`
-
-```bash
-cp .env.example .env
-# Open .env and fill in your API keys
-```
-
-Required keys:
-```
-TMDB_API_KEY=your_key_here
-OMDB_API_KEY=your_key_here
-RAPIDAPI_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
-TVMAZE_BASE_URL=https://api.tvmaze.com
-```
-
-### 3. Install dependencies
-
-```bash
 pip install -r backend/requirements.txt
-```
-
-> **Apple Silicon / CPU note:** If `faiss-cpu` fails, try:
-> ```bash
-> pip install faiss-cpu --no-cache-dir
-> ```
-
----
-
-## Data Ingestion (Run Once)
-
-The system works from a pre-built FAISS index. APIs are **never** called during user queries.
-
-### Step 1 — Fetch raw data from all 4 APIs
-
-```bash
-python -m backend.data.api_fetcher
-```
-
-This writes to `backend/data/raw/`:
-- `tmdb_data.json`
-- `omdb_data.json`
-- `streaming_data.json`
-- `tvmaze_data.json`
-
-### Step 2 — Build the FAISS vector index
-
-```bash
-python -m backend.data.embeddings.embed_builder
-```
-
-This writes to `backend/data/embeddings/`:
-- `faiss_index.bin`
-- `metadata_store.json`
-
-> Both files are git-ignored. Re-run these steps after any data refresh.
-
----
-
-## Running the Application
-
-### Backend (FastAPI)
-
-```bash
 uvicorn backend.main:app --reload --port 8000
 ```
 
-API docs available at: http://localhost:8000/docs
-
-### Frontend (Streamlit)
-
+### 2. Setup Frontend
 ```bash
-streamlit run frontend/app.py
+cd mood-recommender/frontend
+npm install
+npm run dev
 ```
 
-Open: http://localhost:8501
+### 3. Open the App
+Visit **[http://localhost:5173](http://localhost:5173)** in your browser.
 
 ---
 
-## API Endpoints
+## 🧠 How it Works (RAG Pipeline)
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/recommend` | Get mood-based recommendations |
-| `POST` | `/feedback` | Refine results based on user feedback |
-| `POST` | `/refresh-data` | Trigger data re-ingestion (n8n target) |
-| `GET` | `/health` | Liveness check |
-
-### `POST /recommend`
-
-```json
-{
-  "input": "I feel burnt out and need something easy",
-  "session_id": null
-}
-```
-
-**Response:**
-```json
-{
-  "type": "recommendation",
-  "session_id": "uuid-string",
-  "interpreted_mood": {
-    "interpreted_mood": "exhausted, comfort-seeking",
-    "intensity": "high",
-    "themes": ["escapism", "comfort", "low-effort"],
-    "search_queries": ["cozy comfort shows", "easy feel-good series"],
-    "confidence": "high"
-  },
-  "data": [
-    {
-      "title": "The Bear",
-      "year": "2022",
-      "genres": ["Drama"],
-      "platforms": ["Disney+"],
-      "imdb_rating": "8.7",
-      "mood_tag": "⚡ Energizing",
-      "explanation": "When you're burnt out, sometimes you need art that validates the feeling..."
-    }
-  ],
-  "follow_up": "💭 Does this feel right? Tell me what to adjust."
-}
-```
-
-### `POST /feedback`
-
-```json
-{
-  "session_id": "uuid-string",
-  "feedback": "Too intense, want something lighter",
-  "shown_titles": ["The Bear", "Succession"]
-}
-```
-
-### `GET /health`
-
-```json
-{ "status": "ok" }
-```
+1.  **Intent Detection**: Checks if your input is interpretable.
+2.  **Mood Extraction**: The AI converts "I've had a rough day 😔" into structured data (Themes: healing, intensity: high).
+3.  **FAISS Retrieval**: The system searches the vector database for movies that match those themes mathematically.
+4.  **LLM Generation**: Groq takes the results and writes a personalized explanation for why each movie fits your specific mood.
+5.  **Refinement**: You can tell the AI "Make it more upbeat" to instantly get a new set of tailored results.
 
 ---
 
-## MCP Server
-
-The recommendation pipeline is also exposed as an MCP-compatible tool:
-
-```bash
-python -m backend.mcp.mcp_server
-# Runs on http://localhost:8001
-```
-
-**List tools:** `GET /mcp/tools`
-
-**Invoke:** `POST /mcp/tools/get_movie_recommendations`
-```json
-{
-  "input": "something mysterious and slow-burn",
-  "session_id": null
-}
-```
-
----
-
-## Running Tests
-
-```bash
-# All tests
-pytest backend/tests/ -v
-
-# Individual test files
-pytest backend/tests/test_agent.py -v
-pytest backend/tests/test_rag.py -v
-pytest backend/tests/test_llm.py -v
-pytest backend/tests/test_pipeline.py -v
-```
-
-All external dependencies (Gemini, FAISS, sentence-transformers) are mocked in tests. No API keys required to run the test suite.
-
----
-
-## n8n Workflow Import
-
-1. Open your n8n instance
-2. Go to **Workflows → Import from File**
-3. Select `n8n/workflow_export.json`
-4. Update the HTTP Request node URL if your backend runs on a different host/port
-5. Activate the workflow
-
-The workflow runs daily at midnight and calls `POST /refresh-data` to re-fetch all API data and rebuild the FAISS index.
-
----
-
-## Input Examples
-
-| Input | Interpreted As | Result Type |
-|---|---|---|
-| `"I feel melancholic"` | melancholic, reflective | 5 drama/emotional recs |
-| `"idk"` | open, relaxed | 5 feel-good recs |
-| `"🥺"` | sad, soft, emotional | 5 gentle comfort recs |
-| `"aaaaaa"` | overwhelmed, stressed | 5 light escape recs |
-| `"like Dark but easier"` | Dark as retrieval anchor | Sci-fi / thriller recs |
-| `"burnt out"` | low-energy, comfort-seeking | 5 easy-watch recs |
-| `""` (empty) | uninterpretable | One clarification question |
-
----
-
-## Tech Stack
-
-| Layer | Tool |
-|---|---|
-| Embeddings | HuggingFace `sentence-transformers/all-MiniLM-L6-v2` |
-| Vector DB | FAISS (CPU, IVFFlat index) |
-| LLM | Gemini 1.5 Flash (`google-generativeai`) |
-| Agent | Custom agentic pipeline (intent → mood → retrieve → evaluate → generate) |
-| Backend | FastAPI + Uvicorn |
-| Frontend | Streamlit (dark glassmorphism theme) |
-| Orchestration | n8n (scheduled FAISS refresh) |
-| MCP | Custom FastAPI-based MCP server |
-| Data Sources | TMDB · OMDB · Streaming Availability (RapidAPI) · TVmaze |
-
----
-
-## Known Limitations
-
-1. **In-memory sessions** — Session state resets on server restart. For production, replace `FeedbackHandler._sessions` dict with Redis.
-2. **FAISS index is static** — New movies/shows only appear after running the ingestion pipeline again (automated via n8n nightly).
-3. **Streaming platform data accuracy** — The Streaming Availability API catalog may not reflect real-time additions/removals.
-4. **OMDB rate limits** — The free OMDB tier allows 1,000 requests/day; the ingestion script paginates slowly to stay within limits.
-5. **Gemini availability** — If Gemini is unreachable, the system returns heuristic fallback recommendations (no personalized explanations).
-6. **No poster images at runtime** — Poster URLs are stored in metadata but the Streamlit UI currently uses text-only cards.
-
----
-
-## License
-
+## 📜 License
 MIT
