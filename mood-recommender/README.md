@@ -18,14 +18,29 @@ Using **Retrieval-Augmented Generation (RAG)**, CineMatch interprets your mood (
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
+### 🎨 Frontend
+| Technology | Usage |
 |---|---|
-| **Frontend** | React 18 + Vite (Vanilla CSS) |
-| **Backend** | FastAPI (Python 3.11+) |
-| **LLM** | Groq (Llama 3.3 70B) |
-| **Vector DB** | FAISS (Facebook AI Similarity Search) |
-| **Embeddings** | HuggingFace `all-MiniLM-L6-v2` |
-| **Data Sources** | TMDB · OMDB · RapidAPI · TVmaze |
+| **React 18** | Core UI framework for component-based architecture. |
+| **Vite** | Next-generation frontend tooling for ultra-fast builds. |
+| **Axios** | Handling asynchronous API requests to the FastAPI backend. |
+| **Vanilla CSS** | Custom design system with dark-mode and glassmorphism. |
+| **Lucide React** | Premium icon set for a modern aesthetic. |
+
+### ⚙️ Backend
+| Technology | Usage |
+|---|---|
+| **FastAPI** | High-performance Python web framework for the API layer. |
+| **Pydantic v2** | Data validation and settings management. |
+| **Uvicorn** | ASGI server implementation for production-ready performance. |
+
+### 🧠 Core Intelligence
+| Technology | Usage |
+|---|---|
+| **RAG Architecture** | Retrieval-Augmented Generation for grounded recommendations. |
+| **Groq (Llama 3)** | Primary LLM engine for mood analysis and personalized generation. |
+| **FAISS** | Facebook AI Similarity Search for semantic vector retrieval. |
+| **Sentence-Transformers** | Generating high-quality embeddings using `all-MiniLM-L6-v2`. |
 
 ---
 
