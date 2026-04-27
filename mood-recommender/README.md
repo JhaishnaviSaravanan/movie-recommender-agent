@@ -44,37 +44,47 @@ To build its comprehensive movie library, CineMatch leverages four major APIs du
 
 ```text
        ┌──────────────┐
-       │  User Input  │
+       │  User Input  │ (Text/Emojis)
        └──────┬───────┘
-              │ (Mood/Feedback)
+              │ 1. Raw Input
               ▼
        ┌──────────────┐
-       │   React UI   │
+       │   React UI   │ (State Management)
        └──────┬───────┘
-              │ (API Call)
+              │ 2. POST /recommend
               ▼
        ┌──────────────┐
-       │FastAPI Server│
+       │FastAPI Server│ (Orchestrator)
        └──────┬───────┘
-              │
+              │ 3. Dispatch
       ┌───────┴───────┐
       │               │
       ▼               ▼
 ┌───────────┐   ┌───────────┐
-│Mood Agent │   │ FAISS RAG │
+│Mood Agent │   │ FAISS RAG │ (Semantic Search)
 └─────┬─────┘   └─────┬─────┘
-      │               │
+      │ 4. Mood       │ 5. Candidate
+      │    Data       │    Movies
       └───────┬───────┘
+              │ 6. Combined Context
               ▼
        ┌──────────────┐
-       │Groq (Llama 3)│
+       │Groq (Llama 3)│ (Generative AI)
        └──────┬───────┘
-              │ (Explanation)
+              │ 7. Personalized Explanation
               ▼
        ┌──────────────┐
-       │Final Results │
+       │Final Results │ (UI Render)
        └──────────────┘
 ```
+
+### 🔄 System Flow Breakdown
+
+1.  **Ingestion**: The user provides free-form text or emojis representing their current mood.
+2.  **Analysis**: The **Mood Agent** (LLM Call 1) extracts emotional themes and intensity.
+3.  **Retrieval**: The **FAISS RAG** engine performs a semantic vector search to find real movies from the database that match the extracted themes.
+4.  **Synthesis**: **Groq (Llama 3)** receives the retrieved movies and the user's mood to generate warm, personalized "Why you'll like this" explanations.
+5.  **Delivery**: The **React UI** renders the results as high-quality cards with streaming platform details.
 
 ---
 
