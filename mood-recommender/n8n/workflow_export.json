@@ -1,0 +1,107 @@
+{
+  "name": "Mood Recommender — Daily FAISS Refresh",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger (Daily Midnight)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/refresh-data",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "http-refresh",
+      "name": "POST /refresh-data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "refreshed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "if-success",
+      "name": "IF Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "message": "✅ FAISS index refreshed successfully at {{ $now.toISO() }}"
+      },
+      "id": "log-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "message": "❌ FAISS refresh FAILED at {{ $now.toISO() }}. Check backend logs."
+      },
+      "id": "log-failure",
+      "name": "Log Failure / Alert",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 420]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Daily Midnight)": {
+      "main": [
+        [{ "node": "POST /refresh-data", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /refresh-data": {
+      "main": [
+        [{ "node": "IF Success", "type": "main", "index": 0 }]
+      ]
+    },
+    "IF Success": {
+      "main": [
+        [{ "node": "Log Success", "type": "main", "index": 0 }],
+        [{ "node": "Log Failure / Alert", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["mood-recommender", "data-refresh"],
+  "triggerCount": 0,
+  "updatedAt": "2026-04-26T00:00:00.000Z",
+  "versionId": "1"
+}
