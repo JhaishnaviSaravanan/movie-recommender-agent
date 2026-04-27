@@ -57,7 +57,6 @@ def fetch_tmdb(max_pages: int = 20) -> list[dict[str, Any]]:
         list[dict[str, Any]]: Combined movie + TV show records from TMDB.
     """
     base = "https://api.themoviedb.org/3"
-    headers = {"Authorization": f"Bearer {TMDB_API_KEY}"}
     results: list[dict[str, Any]] = []
 
     for media_type in ("movie", "tv"):
@@ -65,8 +64,8 @@ def fetch_tmdb(max_pages: int = 20) -> list[dict[str, Any]]:
             try:
                 resp = requests.get(
                     f"{base}/discover/{media_type}",
-                    headers=headers,
                     params={
+                        "api_key": TMDB_API_KEY,
                         "sort_by": "popularity.desc",
                         "page": page,
                         "include_adult": False,

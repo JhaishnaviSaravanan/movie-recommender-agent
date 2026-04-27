@@ -1,7 +1,7 @@
 """
 main.py
 ───────
-FastAPI application entry point for the Mood-Adaptive Recommender backend.
+FastAPI application entry point for the CineMatch backend.
 
 Responsibilities:
     - Create and configure the FastAPI app instance
@@ -25,7 +25,10 @@ from backend.routes import router
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler("backend.log"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -34,7 +37,7 @@ validate_required_keys()
 
 # ── Create FastAPI app ────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Mood-Adaptive Generative Movie/Show Recommender",
+    title="CineMatch API",
     description=(
         "An emotionally intelligent AI recommendation system that interprets "
         "any form of mood input and returns personalized movie/show suggestions "
@@ -57,4 +60,13 @@ app.add_middleware(
 # ── Register routes ───────────────────────────────────────────────────────────
 app.include_router(router)
 
-logger.info("Mood-Adaptive Recommender API started.")
+@app.get("/")
+async def root():
+    """Welcome message for the API."""
+    return {
+        "message": "Welcome to the CineMatch API!",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+logger.info("CineMatch API started.")

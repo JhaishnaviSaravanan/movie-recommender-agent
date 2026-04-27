@@ -1,26 +1,11 @@
 """
 mood_extractor.py
 ─────────────────
-Gemini Call 1 — interprets ANY user input (however vague) into a structured
-mood object that downstream retrieval and generation modules can act on.
+Uses an LLM (Groq or Gemini) to convert free-form user input into a structured 
+mood object (JSON).
 
-The extractor is deliberately permissive: it never refuses an input.
-Even nonsense strings are turned into a best-effort mood interpretation.
-
-Classes:
-    MoodExtractor — wraps Gemini API for mood interpretation.
-
-Typical output schema:
-    {
-        "interpreted_mood": "melancholic, reflective",
-        "intensity": "medium",
-        "themes": ["loss", "moving on"],
-        "search_queries": [
-            "emotional healing movies",
-            "bittersweet drama series"
-        ],
-        "confidence": "high"
-    }
+The module dynamically switches between providers based on available API keys, 
+prioritising Groq for its high speed and rate limits.
 """
 
 import json
@@ -28,8 +13,12 @@ import logging
 from typing import Any
 
 import google.generativeai as genai
+from groq import Groq
 
-from backend.config import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TEMPERATURE
+from backend.config import (
+    GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TEMPERATURE,
+    GROQ_API_KEY, GROQ_MODEL
+)
 from backend.llm.prompt_templates import MOOD_EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -37,108 +26,92 @@ logger = logging.getLogger(__name__)
 
 class MoodExtractor:
     """
-    Uses Gemini to convert free-form user input into a structured mood object.
-
-    The model is instructed to ALWAYS return valid JSON — even for completely
-    unrecognisable inputs — by falling back to a relaxed / open mood state.
-
-    Args:
-        api_key (str | None): Override the GEMINI_API_KEY from config.
+    Interprets natural language into structured mood JSON.
     """
 
     def __init__(self, api_key: str | None = None) -> None:
         """
-        Initialise the Gemini client.
-
-        Args:
-            api_key (str | None): If provided, overrides the global config key.
+        Initialise the LLM client.
+        Prioritises Groq if GROQ_API_KEY is available.
         """
-        key = api_key or GEMINI_API_KEY
-        genai.configure(api_key=key)
-        self._model = genai.GenerativeModel(
-            model_name=GEMINI_MODEL,
-            generation_config=genai.types.GenerationConfig(
-                temperature=GEMINI_TEMPERATURE,
-                response_mime_type="application/json",
-            ),
-        )
+        self.use_groq = bool(GROQ_API_KEY)
+        
+        if self.use_groq:
+            logger.info("Using Groq for Mood Extraction (Model: %s)", GROQ_MODEL)
+            self._groq_client = Groq(api_key=GROQ_API_KEY)
+        else:
+            logger.info("Using Gemini for Mood Extraction (Model: %s)", GEMINI_MODEL)
+            key = api_key or GEMINI_API_KEY
+            genai.configure(api_key=key)
+            self._gemini_model = genai.GenerativeModel(
+                model_name=GEMINI_MODEL,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=GEMINI_TEMPERATURE,
+                    response_mime_type="application/json",
+                ),
+            )
 
     def extract(self, user_input: str) -> dict[str, Any]:
         """
-        Run Gemini Call 1: interpret user input into a structured mood dict.
-
-        Args:
-            user_input (str): Raw, unprocessed text from the user.
-
-        Returns:
-            dict[str, Any]: Structured mood object with keys:
-                - interpreted_mood (str)
-                - intensity        (str: "low" | "medium" | "high")
-                - themes           (list[str])
-                - search_queries   (list[str], 2-3 items)
-                - confidence       (str: "low" | "medium" | "high")
-
-        Raises:
-            ValueError: If Gemini returns unparseable JSON after retries.
+        Extract mood data from user input.
         """
-        # ── Build the prompt ─────────────────────────────────────────────────
         prompt = MOOD_EXTRACTION_PROMPT.format(user_input=user_input)
 
+        if self.use_groq:
+            return self._extract_groq(prompt, user_input)
+        return self._extract_gemini(prompt, user_input)
+
+    def _extract_groq(self, prompt: str, user_input: str) -> dict[str, Any]:
         try:
-            response = self._model.generate_content(prompt)
-            raw_text = response.text.strip()
-
-            # ── Parse JSON response ──────────────────────────────────────────
-            mood_data: dict[str, Any] = json.loads(raw_text)
+            completion = self._groq_client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are an expert mood analyzer. Output ONLY valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.5
+            )
+            raw_text = completion.choices[0].message.content.strip()
+            mood_data = json.loads(raw_text)
             self._validate_mood_schema(mood_data)
-            logger.info("Mood extracted successfully: %s", mood_data)
             return mood_data
-
-        except json.JSONDecodeError as exc:
-            logger.error("Gemini returned non-JSON response: %s", exc)
+        except Exception as exc:
+            logger.error("Groq extraction failed: %s", exc)
             return self._fallback_mood(user_input)
 
-        except Exception as exc:  # noqa: BLE001 — broad catch for API errors
-            logger.error("Gemini Call 1 failed: %s", exc)
+    def _extract_gemini(self, prompt: str, user_input: str) -> dict[str, Any]:
+        try:
+            response = self._gemini_model.generate_content(prompt)
+            if not response.parts:
+                return self._fallback_mood(user_input)
+            
+            raw_text = response.text.strip()
+            if raw_text.startswith("```"):
+                lines = raw_text.splitlines()
+                if lines[0].startswith("```"): lines = lines[1:]
+                if lines and lines[-1].startswith("```"): lines = lines[:-1]
+                raw_text = "\n".join(lines).strip()
+
+            mood_data = json.loads(raw_text)
+            self._validate_mood_schema(mood_data)
+            return mood_data
+        except Exception as exc:
+            logger.error("Gemini extraction failed: %s", exc)
             return self._fallback_mood(user_input)
 
-    # ── Internal helpers ─────────────────────────────────────────────────────
+    def _validate_mood_schema(self, data: dict[str, Any]) -> None:
+        required = ["interpreted_mood", "intensity", "themes", "confidence"]
+        for field in required:
+            if field not in data:
+                data[field] = "unknown" if field != "themes" else []
 
-    @staticmethod
-    def _validate_mood_schema(data: dict[str, Any]) -> None:
-        """
-        Ensure the required keys are present in the mood response.
-
-        Args:
-            data (dict[str, Any]): Parsed JSON from Gemini.
-
-        Raises:
-            ValueError: If any required key is missing.
-        """
-        required = {"interpreted_mood", "intensity", "themes", "search_queries", "confidence"}
-        missing = required - data.keys()
-        if missing:
-            raise ValueError(f"Mood response missing keys: {missing}")
-
-    @staticmethod
-    def _fallback_mood(user_input: str) -> dict[str, Any]:
-        """
-        Generate a safe fallback mood when Gemini is unavailable or fails.
-
-        Args:
-            user_input (str): The original user text.
-
-        Returns:
-            dict[str, Any]: A generic open/relaxed mood object.
-        """
-        logger.warning("Using fallback mood for input: %r", user_input)
+    def _fallback_mood(self, user_input: str) -> dict[str, Any]:
         return {
             "interpreted_mood": "open, curious",
             "intensity": "medium",
-            "themes": ["adventure", "discovery", "feel-good"],
-            "search_queries": [
-                "feel-good movies to watch",
-                "popular entertaining films",
-            ],
+            "themes": [],
+            "search_queries": ["popular highly rated movies", "top trending shows"],
             "confidence": "low",
+            "reasoning": f"Fallback due to LLM error on input: {user_input[:50]}..."
         }

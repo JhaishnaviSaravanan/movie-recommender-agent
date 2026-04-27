@@ -51,6 +51,7 @@ def embed_query(text: str) -> np.ndarray:
         [text],
         convert_to_numpy=True,
         normalize_embeddings=True,
+        show_progress_bar=False,
     )
     return vec.astype(np.float32)
 
@@ -77,5 +78,6 @@ def embed_queries(texts: list[str]) -> np.ndarray:
         convert_to_numpy=True,
         normalize_embeddings=True,
         batch_size=32,
+        show_progress_bar=False,
     )
     return vecs.astype(np.float32)

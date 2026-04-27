@@ -120,7 +120,6 @@ mood-recommender/
 │
 ├── .env.example
 ├── .gitignore
-├── docker-compose.yml
 └── README.md
 ```
 
@@ -215,12 +214,6 @@ streamlit run frontend/app.py
 ```
 
 Open: http://localhost:8501
-
-### Both together (Docker)
-
-```bash
-docker-compose up --build
-```
 
 ---
 
@@ -375,7 +368,6 @@ The workflow runs daily at midnight and calls `POST /refresh-data` to re-fetch a
 4. **OMDB rate limits** — The free OMDB tier allows 1,000 requests/day; the ingestion script paginates slowly to stay within limits.
 5. **Gemini availability** — If Gemini is unreachable, the system returns heuristic fallback recommendations (no personalized explanations).
 6. **No poster images at runtime** — Poster URLs are stored in metadata but the Streamlit UI currently uses text-only cards.
-7. **Docker setup** — The provided `docker-compose.yml` references `Dockerfile.backend` and `Dockerfile.frontend` which you'll need to create for containerised deployments.
 
 ---
 

@@ -86,7 +86,7 @@ def build_faiss_index(records: list[dict[str, Any]] | None = None) -> None:
     texts = [_build_text(r) for r in records]
     embeddings: np.ndarray = model.encode(
         texts,
-        show_progress_bar=True,
+        show_progress_bar=False,
         batch_size=64,
         convert_to_numpy=True,
         normalize_embeddings=True,   # L2 normalization → cosine via inner product

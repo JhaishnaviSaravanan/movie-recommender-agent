@@ -27,7 +27,7 @@ from backend.agent.mood_extractor import MoodExtractor
 from backend.agent.retrieval_evaluator import RetrievalEvaluator
 from backend.agent.feedback_handler import FeedbackHandler
 from backend.rag.faiss_retriever import FAISSRetriever
-from backend.llm.gemini_generator import GeminiGenerator
+from backend.llm.llm_generator import LLMGenerator
 from backend.llm.prompt_templates import CLARIFICATION_MESSAGE
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class RecommenderPipeline:
         self._mood_extractor = MoodExtractor()
         self._retriever = FAISSRetriever()
         self._evaluator = RetrievalEvaluator()
-        self._generator = GeminiGenerator()
+        self._generator = LLMGenerator()
         self._feedback_handler = FeedbackHandler()
         logger.info("RecommenderPipeline initialised.")
 
